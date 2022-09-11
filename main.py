@@ -34,6 +34,20 @@ from tensorflow.keras import layers
 import tensorflow_addons as tfa
 import tensorflow_datasets as tfds
 
+from kaggle_datasets import KaggleDatasets
+
+try:
+    tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
+    print('Device:', tpu.master())
+    tf.config.experimental_connect_to_cluster(tpu)
+    tf.tpu.experimental.initialize_tpu_system(tpu)
+    strategy = tf.distribute.experimental.TPUStrategy(tpu)
+except:
+    strategy = tf.distribute.get_strategy()
+print('Number of replicas:', strategy.num_replicas_in_sync)
+    
+print(tf.__version__)
+
 tfds.disable_progress_bar()
 autotune = tf.data.AUTOTUNE
 
@@ -46,15 +60,39 @@ In this example, we will be using the
 dataset.
 """
 
-# Load the horse-zebra dataset using tensorflow-datasets.
-dataset, _ = tfds.load("cycle_gan/horse2zebra", with_info=True, as_supervised=True)
-train_horses, train_zebras = dataset["trainA"], dataset["trainB"]
-test_horses, test_zebras = dataset["testA"], dataset["testB"]
+# Load the Monet-photo dataset using tensorflow-datasets.
 
-# Define the standard image size.
-orig_img_size = (286, 286)
-# Size of the random crops to be used during training.
-input_img_size = (256, 256, 3)
+GCS_PATH = KaggleDatasets().get_gcs_path()
+
+MONET_FILENAMES = tf.io.gfile.glob(str(GCS_PATH + '/monet_tfrec/*.tfrec'))
+print('Monet TFRecord Files:', len(MONET_FILENAMES))
+
+PHOTO_FILENAMES = tf.io.gfile.glob(str(GCS_PATH + '/photo_tfrec/*.tfrec'))
+print('Photo TFRecord Files:', len(PHOTO_FILENAMES))
+
+IMAGE_SIZE = [256, 256]
+
+def decode_image(image):
+    image = tf.image.decode_jpeg(image, channels=3)
+    image = (tf.cast(image, tf.float32) / 127.5) - 1
+    image = tf.reshape(image, [*IMAGE_SIZE, 3])
+    return image
+
+def read_tfrecord(example):
+    tfrecord_format = {
+        "image_name": tf.io.FixedLenFeature([], tf.string),
+        "image": tf.io.FixedLenFeature([], tf.string),
+        "target": tf.io.FixedLenFeature([], tf.string)
+    }
+    example = tf.io.parse_single_example(example, tfrecord_format)
+    image = decode_image(example['image'])
+    return image
+
+def load_dataset(filenames, labeled=True, ordered=False):
+    dataset = tf.data.TFRecordDataset(filenames)
+    dataset = dataset.map(read_tfrecord, num_parallel_calls=AUTOTUNE)
+    return dataset
+
 # Weights initializer for the layers.
 kernel_init = keras.initializers.RandomNormal(mean=0.0, stddev=0.02)
 # Gamma initializer for instance normalization.
@@ -62,6 +100,14 @@ gamma_init = keras.initializers.RandomNormal(mean=0.0, stddev=0.02)
 
 buffer_size = 256
 batch_size = 1
+
+monet_ds = load_dataset(MONET_FILENAMES, labeled=True).batch(1)
+photo_ds = load_dataset(PHOTO_FILENAMES, labeled=True).batch(1)
+
+iter_monet = iter(monet_ds)
+iter_photo = iter(photo_ds)
+example_monet = next(iter_monet)
+example_photo = next(iter_photo)
 
 
 def normalize_img(img):
