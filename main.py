@@ -56,9 +56,6 @@ autotune = tf.data.AUTOTUNE
 """
 ## Prepare the dataset
 
-In this example, we will be using the
-[horse to zebra](https://www.tensorflow.org/datasets/catalog/cycle_gan#cycle_ganhorse2zebra)
-dataset.
 """
 
 # Load the Monet-photo dataset using tensorflow-datasets.
@@ -145,28 +142,28 @@ def preprocess_test_image(img, label):
 
 
 # Apply the preprocessing operations to the training data
-train_horses = (
-    train_horses.map(preprocess_train_image, num_parallel_calls=autotune)
+train_photo = (
+    train_photo.map(preprocess_train_image, num_parallel_calls=autotune)
     .cache()
     .shuffle(buffer_size)
     .batch(batch_size)
 )
-train_zebras = (
-    train_zebras.map(preprocess_train_image, num_parallel_calls=autotune)
+train_monet = (
+    train_monet.map(preprocess_train_image, num_parallel_calls=autotune)
     .cache()
     .shuffle(buffer_size)
     .batch(batch_size)
 )
 
 # Apply the preprocessing operations to the test data
-test_horses = (
-    test_horses.map(preprocess_test_image, num_parallel_calls=autotune)
+test_photo = (
+    test_photo.map(preprocess_test_image, num_parallel_calls=autotune)
     .cache()
     .shuffle(buffer_size)
     .batch(batch_size)
 )
-test_zebras = (
-    test_zebras.map(preprocess_test_image, num_parallel_calls=autotune)
+test_monet = (
+    test_monet.map(preprocess_test_image, num_parallel_calls=autotune)
     .cache()
     .shuffle(buffer_size)
     .batch(batch_size)
@@ -179,7 +176,7 @@ test_zebras = (
 
 
 _, ax = plt.subplots(4, 2, figsize=(10, 15))
-for i, samples in enumerate(zip(train_horses.take(4), train_zebras.take(4))):
+for i, samples in enumerate(zip(train_photo.take(4), train_monet.take(4))):
     horse = (((samples[0][0] * 127.5) + 127.5).numpy()).astype(np.uint8)
     zebra = (((samples[1][0] * 127.5) + 127.5).numpy()).astype(np.uint8)
     ax[i, 0].imshow(horse)
@@ -599,7 +596,7 @@ class GANMonitor(keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         _, ax = plt.subplots(4, 2, figsize=(12, 12))
-        for i, img in enumerate(test_horses.take(self.num_img)):
+        for i, img in enumerate(test_photo.take(self.num_img)):
             prediction = self.model.gen_G(img)[0].numpy()
             prediction = (prediction * 127.5 + 127.5).astype(np.uint8)
             img = (img[0] * 127.5 + 127.5).numpy().astype(np.uint8)
@@ -666,7 +663,7 @@ model_checkpoint_callback = keras.callbacks.ModelCheckpoint(
 # Here we will train the model for just one epoch as each epoch takes around
 # 7 minutes on a single P100 backed machine.
 cycle_gan_model.fit(
-    tf.data.Dataset.zip((train_horses, train_zebras)),
+    tf.data.Dataset.zip((train_photo, train_monet)),
     epochs=1,
     callbacks=[plotter, model_checkpoint_callback],
 )
@@ -695,7 +692,7 @@ cycle_gan_model.load_weights(weight_file).expect_partial()
 print("Weights loaded successfully")
 
 _, ax = plt.subplots(4, 2, figsize=(10, 15))
-for i, img in enumerate(test_horses.take(4)):
+for i, img in enumerate(test_photo.take(4)):
     prediction = cycle_gan_model.gen_G(img, training=False)[0].numpy()
     prediction = (prediction * 127.5 + 127.5).astype(np.uint8)
     img = (img[0] * 127.5 + 127.5).numpy().astype(np.uint8)
