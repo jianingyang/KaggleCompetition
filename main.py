@@ -35,6 +35,7 @@ import tensorflow_addons as tfa
 import tensorflow_datasets as tfds
 
 from kaggle_datasets import KaggleDatasets
+from sklearn.model_selection import train_test_split
 
 try:
     tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
@@ -103,6 +104,9 @@ batch_size = 1
 
 monet_ds = load_dataset(MONET_FILENAMES, labeled=True).batch(1)
 photo_ds = load_dataset(PHOTO_FILENAMES, labeled=True).batch(1)
+
+train_monet, test_monet = train_test_split(monet_ds)
+train_photo, test_photo = train_test_split(photo_ds)
 
 iter_monet = iter(monet_ds)
 iter_photo = iter(photo_ds)
